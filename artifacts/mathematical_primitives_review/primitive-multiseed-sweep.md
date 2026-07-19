@@ -40,6 +40,9 @@ The same candidate set from `primitive-optimization-sweep.md` was tested:
 - `phase-relay`
 - `phase-relay-transport`
 - `phase-relay-low-leak`
+- `guarded-phase-relay`
+- `guarded-phase-relay-low-leak`
+- `guarded-phase-relay-balanced`
 
 ## Release evidence
 
@@ -55,9 +58,11 @@ Source report: `artifacts/primitive-multiseed-sweep.txt`
 
 Leader counts:
 
-- `baseline-adaptive`: channel wins `3`, signal-rate wins `0`,
+- `baseline-adaptive`: channel wins `1`, signal-rate wins `0`,
   radiation-rate wins `0`.
 - `radiation-gate`: channel wins `1`, signal-rate wins `0`,
+  radiation-rate wins `0`.
+- `guarded-phase-relay`: channel wins `2`, signal-rate wins `0`,
   radiation-rate wins `0`.
 - `transport-pressure`: channel wins `0`, signal-rate wins `0`,
   radiation-rate wins `0`.
@@ -72,10 +77,10 @@ Leader counts:
 
 operator_primitive_impact: The single-seed speed result did not become a
 universal promotion after multi-seed testing for channel information.
-`phase-relay-low-leak` is the stable per-moment signal-rate candidate in this
-four-seed gate, and `low-leak-plus-radiation` is the stable per-moment
-radiation-rate candidate. None of these preserve channel information better
-than baseline across the tested seeds.
+`guarded-phase-relay` won channel information in half the seeds, but the
+channel leader is still mixed. `phase-relay-low-leak` is the stable per-moment
+signal-rate candidate in this four-seed gate, and `low-leak-plus-radiation` is
+the stable per-moment radiation-rate candidate.
 
 operator_notification: No primitive was rejected. Multi-seed evidence now
 blocks promoting or rejecting a primitive from one seed alone.

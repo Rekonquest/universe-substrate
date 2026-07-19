@@ -60,6 +60,7 @@ cargo run --release --bin falsify -- --seed-count 4 --output artifacts/primitive
 cargo run --release --bin sweep -- --output artifacts/primitive-optimization-sweep.txt
 cargo run --release --bin multisweep -- --output artifacts/primitive-multiseed-sweep.txt
 cargo run --release -- --phase-relay 0.32 --output artifacts/phase-relay-smoke.bmp
+cargo run --release -- --phase-relay 0.30 --relay-guard 0.50 --output artifacts/guarded-phase-relay-smoke.bmp
 ~~~
 
 The `adaptive` mode is the default. It starts with tiny noisy coupling and lets
@@ -151,7 +152,10 @@ and tested:
 - `balanced-channel-compound`;
 - `phase-relay`;
 - `phase-relay-transport`;
-- `phase-relay-low-leak`.
+- `phase-relay-low-leak`;
+- `guarded-phase-relay`;
+- `guarded-phase-relay-low-leak`;
+- `guarded-phase-relay-balanced`.
 
 The current result is mixed and therefore stays under operator review:
 
@@ -166,8 +170,8 @@ The current result is mixed and therefore stays under operator review:
 deterministic seeds. The current four-seed release run wrote
 `artifacts/primitive-multiseed-sweep.txt` and found no stable universal leader:
 
-- channel-information leader: mixed; `baseline-adaptive` won 3 of 4 seeds and
-  `radiation-gate` won 1 of 4;
+- channel-information leader: mixed; `guarded-phase-relay` won 2 of 4 seeds,
+  `baseline-adaptive` won 1 of 4, and `radiation-gate` won 1 of 4;
 - signal-rate leader: `phase-relay-low-leak` won 4 of 4 seeds;
 - radiation-rate leader: `low-leak-plus-radiation` won 4 of 4 seeds;
 - all repeated candidate hashes were deterministic;
@@ -179,6 +183,12 @@ queue. It boosts adjacent exchange only when the two sites have compatible
 phase, material permeability, and spectral shape. A release smoke run at
 `--phase-relay 0.32` wrote `artifacts/phase-relay-smoke.bmp`; that run
 produced `2910` luminous sites and `1.261688882` channel-information bits.
+
+The `relay_guard` governor is a second local law that suppresses phase relay
+where the local spectrum drifts away from the source-band shape. A release
+smoke run at `--phase-relay 0.30 --relay-guard 0.50` wrote
+`artifacts/guarded-phase-relay-smoke.bmp`; that run produced `2887` luminous
+sites and `1.265713355` channel-information bits.
 
 ## What would falsify this stage
 

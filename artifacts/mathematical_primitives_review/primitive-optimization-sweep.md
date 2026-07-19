@@ -45,6 +45,11 @@ reject any primitive and does not rename a speed gain into a quality gain.
   pressure.
 - `phase-relay-low-leak`: phase relay compounded with lower dissipation and
   slower permeability erosion.
+- `guarded-phase-relay`: phase relay with local source-band spectral guard.
+- `guarded-phase-relay-low-leak`: guarded phase relay compounded with lower
+  dissipation.
+- `guarded-phase-relay-balanced`: guarded phase relay with moderate transport
+  and moderate low leak.
 
 ## Salvage attempts
 
@@ -71,13 +76,23 @@ Signal-rate and radiation-rate values are deterministic per substrate moment.
 Wall-clock elapsed time is still reported separately, but it is not used for
 primitive leader selection.
 
+Guarded relay evidence:
+
+- `guarded-phase-relay` reduced the single-seed channel-information loss from
+  the unguarded relay's `-0.009203312` bits to `-0.004773906` bits while still
+  increasing channel signal by `1.088452961x`.
+- `guarded-phase-relay-low-leak` kept most of the low-leak signal gain with
+  `1.240432901x` channel signal, but still did not beat baseline channel
+  information in the single-seed run.
+
 ## Operator primitive impact
 
 operator_primitive_impact: The sweep found speed-adjacent gains, but the
 default adaptive stack still preserved the highest channel information in this
 run. `phase-relay-low-leak` improved signal rate in the current single-seed
 sweep, and `low-leak-plus-radiation` improved radiation rate. These are
-candidates for follow-up, not approved replacements.
+candidates for follow-up, not approved replacements. `guarded-phase-relay`
+is a salvage candidate for reducing information loss, not a replacement.
 
 operator_notification: No primitive was rejected. Any future candidate
 disposition must include the exact primitive list, stack order, measured

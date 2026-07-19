@@ -146,7 +146,7 @@ pub fn run_standard_sweep(
     })
 }
 
-fn standard_candidates() -> [PrimitiveCandidate; 10] {
+fn standard_candidates() -> [PrimitiveCandidate; 13] {
     [
         PrimitiveCandidate::new(
             "transport-pressure",
@@ -207,6 +207,24 @@ fn standard_candidates() -> [PrimitiveCandidate; 10] {
             "phase relay compounded with lower dissipation and slower permeability erosion",
             "paired relay speed with longer material memory without changing radiation conversion",
             phase_relay_low_leak,
+        ),
+        PrimitiveCandidate::new(
+            "guarded-phase-relay",
+            "phase relay with local source-band spectral guard",
+            "suppressed relay only where local spectrum drifts away from the source-band shape",
+            guarded_phase_relay,
+        ),
+        PrimitiveCandidate::new(
+            "guarded-phase-relay-low-leak",
+            "guarded phase relay compounded with lower dissipation",
+            "kept the speed/low-leak compound but added local spectral guarding to reduce crosstalk",
+            guarded_phase_relay_low_leak,
+        ),
+        PrimitiveCandidate::new(
+            "guarded-phase-relay-balanced",
+            "guarded phase relay with moderate transport and moderate low leak",
+            "softened relay, transport, and leak together to look for a better speed/information balance",
+            guarded_phase_relay_balanced,
         ),
     ]
 }
@@ -524,6 +542,30 @@ fn phase_relay_low_leak(mut config: Config) -> Config {
     config
 }
 
+fn guarded_phase_relay(mut config: Config) -> Config {
+    config.phase_relay = 0.34;
+    config.relay_guard = 0.55;
+    config
+}
+
+fn guarded_phase_relay_low_leak(mut config: Config) -> Config {
+    config.phase_relay = 0.30;
+    config.relay_guard = 0.50;
+    config.dissipation = 0.000_95;
+    config.erosion = 0.001_45;
+    config
+}
+
+fn guarded_phase_relay_balanced(mut config: Config) -> Config {
+    config.diffusion = 0.112;
+    config.gradient = 0.240;
+    config.phase_relay = 0.26;
+    config.relay_guard = 0.45;
+    config.dissipation = 0.001_00;
+    config.erosion = 0.001_50;
+    config
+}
+
 fn same_measurements(a: Measurements, b: Measurements) -> bool {
     a.age == b.age
         && a.introduced.to_bits() == b.introduced.to_bits()
@@ -596,6 +638,9 @@ mod tests {
             "candidate=phase-relay",
             "candidate=phase-relay-transport",
             "candidate=phase-relay-low-leak",
+            "candidate=guarded-phase-relay",
+            "candidate=guarded-phase-relay-low-leak",
+            "candidate=guarded-phase-relay-balanced",
         ] {
             let position = text
                 .find(candidate)

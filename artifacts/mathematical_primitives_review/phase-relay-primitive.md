@@ -37,6 +37,9 @@ or API objects.
 - `phase-relay`
 - `phase-relay-transport`
 - `phase-relay-low-leak`
+- `guarded-phase-relay`
+- `guarded-phase-relay-low-leak`
+- `guarded-phase-relay-balanced`
 
 ## Release evidence
 
@@ -58,6 +61,7 @@ Single-seed sweep:
 Multi-seed sweep:
 
 - `phase-relay-low-leak` won per-moment signal rate in `4` of `4` seeds.
+- `guarded-phase-relay` won channel information in `2` of `4` seeds.
 - `phase-relay` had `0` channel-information wins, `0` signal-rate wins, and
   `0` radiation-rate wins.
 - `phase-relay-transport` had `0` wins in the tracked leader categories.
@@ -70,6 +74,14 @@ Smoke artifact:
 - channel-information bits: `1.261688882`
 - bitmap SHA-256: `3E539AFA5706CEA89FCADB83CC77727C70F3938F0969950E4E65843371505C0D`
 
+Guarded smoke artifact:
+
+- phase relay strength: `0.300000`
+- relay guard strength: `0.500000`
+- luminous sites: `2887`
+- channel-information bits: `1.265713355`
+- bitmap SHA-256: `893FD9CF68820259E28BE79065B23F48CFBA53FF6C4C215E60A5ADD3DA670D8A`
+
 ## Operator primitive impact
 
 operator_primitive_impact: `phase_relay` is now implemented and measured. It
@@ -77,6 +89,11 @@ is useful as a deterministic per-moment speed/throughput candidate when
 compounded with low leak in this four-seed gate, but it has not beaten
 baseline channel information across the tested seeds. It remains a candidate
 for follow-up tuning, not a promoted replacement.
+
+operator_primitive_impact: `relay_guard` is a useful local salvage primitive
+for channel preservation. It improved the channel-information standing of the
+relay family, but it did not displace the stable signal-rate or radiation-rate
+leaders.
 
 operator_notification: No phase-relay primitive was rejected. No phase-relay
 primitive was promoted. Any disposition still requires operator approval.

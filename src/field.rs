@@ -1,4 +1,4 @@
-use std::f32::consts::{PI, TAU};
+﻿use std::f32::consts::{PI, TAU};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Spectrum {
@@ -127,6 +127,7 @@ pub struct Config {
     pub diffusion: f32,
     pub gradient: f32,
     pub phase_relay: f32,
+    pub relay_guard: f32,
     pub formation: f32,
     pub erosion: f32,
     pub coupling_formation: f32,
@@ -146,6 +147,7 @@ impl Default for Config {
             diffusion: 0.105,
             gradient: 0.24,
             phase_relay: 0.0,
+            relay_guard: 0.0,
             formation: 0.022,
             erosion: 0.0018,
             coupling_formation: 0.220,
@@ -168,6 +170,7 @@ impl Config {
             ("diffusion", self.diffusion),
             ("gradient", self.gradient),
             ("phase_relay", self.phase_relay),
+            ("relay_guard", self.relay_guard),
             ("formation", self.formation),
             ("erosion", self.erosion),
             ("coupling_formation", self.coupling_formation),
@@ -184,6 +187,9 @@ impl Config {
         }
         if self.phase_relay > 0.70 {
             return Err("phase_relay above 0.70 over-amplifies local conductance".into());
+        }
+        if self.relay_guard > 1.0 {
+            return Err("relay_guard must not exceed one".into());
         }
         if (self.diffusion * 4.0 + self.gradient) * (1.0 + self.phase_relay) > 0.95 {
             return Err("combined transport would move too much energy in one moment".into());
@@ -633,7 +639,8 @@ impl World {
         let alignment = 0.5 + 0.5 * (a.phase - b.phase + edge_phase).cos();
         let material = (a.permeability * b.permeability).sqrt();
         let spectral_bridge = spectral_bridge(a.energy, b.energy);
-        let relay = self.config.phase_relay * alignment * spectral_bridge * material;
+        let guard = self.relay_guard(left, right, a.energy + b.energy);
+        let relay = self.config.phase_relay * alignment * spectral_bridge * material * guard;
         let conductance =
             ((0.14 + 0.86 * material) * (0.42 + 0.58 * alignment) * (1.0 + relay)).clamp(0.0, 1.70);
         let relaxation = (a.energy - b.energy) * (self.config.diffusion * conductance);
@@ -648,6 +655,22 @@ impl World {
         let magnitude = flow.magnitude();
         local_flow[left] += magnitude;
         local_flow[right] += magnitude;
+    }
+
+    fn relay_guard(&self, left: usize, right: usize, signal: Spectrum) -> f32 {
+        if self.config.relay_guard <= 0.0 {
+            return 1.0;
+        }
+        let y = ((left / self.config.width) + (right / self.config.width)) as f32 * 0.5;
+        let ny = y / (self.config.height - 1) as f32;
+        let expected = unit_spectrum(Spectrum::new(
+            source_band(ny, 0.23),
+            source_band(ny, 0.50),
+            source_band(ny, 0.77),
+        ));
+        let observed = unit_spectrum(signal);
+        let match_score = spectral_bridge(expected, observed);
+        (1.0 - self.config.relay_guard * (1.0 - match_score)).clamp(0.0, 1.0)
     }
 }
 

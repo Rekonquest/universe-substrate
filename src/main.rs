@@ -28,6 +28,7 @@ fn run() -> Result<(), String> {
         coupling_mode: options.coupling_mode,
         disturbance_mode: options.disturbance_mode,
         phase_relay: options.phase_relay,
+        relay_guard: options.relay_guard,
         ..Config::default()
     };
     let mut world = World::new(config)?;
@@ -56,6 +57,7 @@ fn run() -> Result<(), String> {
     println!("coupling:    {}", options.coupling_mode.as_str());
     println!("disturbance: {}", options.disturbance_mode.as_str());
     println!("phase relay:{:.3}", options.phase_relay);
+    println!("relay guard:{:.3}", options.relay_guard);
     println!("moments:     {}", measured.age);
     println!("elapsed:     {:.3} s", elapsed.as_secs_f64());
     println!("introduced:  {:.6}", measured.introduced);
@@ -123,6 +125,7 @@ fn write_report(
     writeln!(report, "coupling={}", options.coupling_mode.as_str())?;
     writeln!(report, "disturbance={}", options.disturbance_mode.as_str())?;
     writeln!(report, "phase_relay={:.6}", options.phase_relay)?;
+    writeln!(report, "relay_guard={:.6}", options.relay_guard)?;
     writeln!(report, "width={}", options.width)?;
     writeln!(report, "height={}", options.height)?;
     writeln!(report, "moments={}", measured.age)?;
@@ -222,6 +225,7 @@ struct Options {
     coupling_mode: CouplingMode,
     disturbance_mode: DisturbanceMode,
     phase_relay: f32,
+    relay_guard: f32,
     sample_every: Option<u64>,
     output: PathBuf,
 }
@@ -236,6 +240,7 @@ impl Default for Options {
             coupling_mode: CouplingMode::Adaptive,
             disturbance_mode: DisturbanceMode::None,
             phase_relay: 0.0,
+            relay_guard: 0.0,
             sample_every: None,
             output: PathBuf::from("artifacts/universe-frame.bmp"),
         }
@@ -253,7 +258,8 @@ impl Options {
                     std::process::exit(0);
                 }
                 "--width" | "--height" | "--moments" | "--seed" | "--coupling"
-                | "--disturbance" | "--phase-relay" | "--sample-every" | "--output" => arguments
+                | "--disturbance" | "--phase-relay" | "--relay-guard" | "--sample-every"
+                | "--output" => arguments
                     .next()
                     .ok_or_else(|| format!("{argument} requires a value"))?,
                 _ => return Err(format!("unknown argument: {argument}")),
@@ -266,6 +272,7 @@ impl Options {
                 "--coupling" => options.coupling_mode = parse_coupling(&value)?,
                 "--disturbance" => options.disturbance_mode = parse_disturbance(&value)?,
                 "--phase-relay" => options.phase_relay = parse_number(&argument, &value)?,
+                "--relay-guard" => options.relay_guard = parse_number(&argument, &value)?,
                 "--sample-every" => options.sample_every = Some(parse_number(&argument, &value)?),
                 "--output" => options.output = PathBuf::from(value),
                 _ => unreachable!(),
@@ -279,6 +286,9 @@ impl Options {
         }
         if !options.phase_relay.is_finite() || !(0.0..=0.70).contains(&options.phase_relay) {
             return Err("--phase-relay must be finite and between zero and 0.70".into());
+        }
+        if !options.relay_guard.is_finite() || !(0.0..=1.0).contains(&options.relay_guard) {
+            return Err("--relay-guard must be finite and between zero and one".into());
         }
         Ok(options)
     }
@@ -327,6 +337,7 @@ fn print_help() {
          \x20 --coupling MODE adaptive, fixed, or inert (default: adaptive)\n\
          \x20 --disturbance MODE none, scar, or noise (default: none)\n\
          \x20 --phase-relay N local phase/spectral relay strength, 0..0.70\n\
+         \x20 --relay-guard N source-band guard for phase relay, 0..1\n\
          \x20 --sample-every N write a CSV timeline every N moments\n\
          \x20 --output PATH   bitmap artifact path\n\
          \x20 -h, --help      print this help"
@@ -361,6 +372,8 @@ mod tests {
                 "scar",
                 "--phase-relay",
                 "0.25",
+                "--relay-guard",
+                "0.40",
                 "--sample-every",
                 "4",
             ]
@@ -375,6 +388,7 @@ mod tests {
         assert_eq!(options.coupling_mode, CouplingMode::Fixed);
         assert_eq!(options.disturbance_mode, DisturbanceMode::Scar);
         assert_eq!(options.phase_relay, 0.25);
+        assert_eq!(options.relay_guard, 0.40);
         assert_eq!(options.sample_every, Some(4));
     }
 
@@ -403,6 +417,12 @@ mod tests {
     }
 
     #[test]
+    fn parser_rejects_invalid_relay_guard() {
+        let result = Options::parse(["--relay-guard", "1.5"].map(String::from).into_iter());
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn sampling_records_initial_intermediate_and_final_measurements() {
         let options = Options {
             width: 32,
@@ -412,6 +432,7 @@ mod tests {
             coupling_mode: CouplingMode::Adaptive,
             disturbance_mode: DisturbanceMode::None,
             phase_relay: 0.15,
+            relay_guard: 0.25,
             sample_every: Some(4),
             output: PathBuf::from("unused.bmp"),
         };
@@ -422,6 +443,7 @@ mod tests {
             coupling_mode: options.coupling_mode,
             disturbance_mode: options.disturbance_mode,
             phase_relay: options.phase_relay,
+            relay_guard: options.relay_guard,
             ..Config::default()
         };
         let mut world = World::new(config).unwrap();
