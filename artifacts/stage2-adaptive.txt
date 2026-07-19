@@ -1,0 +1,18 @@
+Universum substrate experiment
+seed=2801889005
+coupling=adaptive
+width=192
+height=112
+moments=2400
+elapsed_seconds=3.153712
+introduced=3697.920084000
+resident=632.376990986
+radiated=1337.967586856
+dissipated=1727.575254154
+accounting_error=0.000252002546
+mean_permeability=0.151155260
+mean_coupling=0.003161234
+organized_fraction=0.352771577
+coupled_fraction=0.061569940
+largest_organized_component=0.352771577
+luminous_sites=4300

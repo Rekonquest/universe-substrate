@@ -5,8 +5,13 @@
 //! become visible where local spectral coupling permits it. There are no API
 //! commands, handles, queues, allocations, or device objects in the model.
 
+mod falsify;
 mod field;
 mod render;
 
-pub use field::{Config, Measurements, Spectrum, World};
+pub use falsify::{
+    FalsificationReport, FalsificationThresholds, PrimitiveStack, StackOutcome,
+    run_standard_falsification,
+};
+pub use field::{Config, CouplingMode, DisturbanceMode, Measurements, Spectrum, World};
 pub use render::write_bmp;

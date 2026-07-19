@@ -1,0 +1,26 @@
+Universum substrate experiment
+seed=103
+coupling=adaptive
+disturbance=noise
+width=56
+height=36
+moments=1200
+elapsed_seconds=0.103666
+introduced=1855.708006133
+resident=422.130234301
+radiated=862.069995235
+dissipated=571.507659174
+disturbance_introduced=6.747964134
+disturbance_dissipated=0.000000000
+accounting_error=0.000117423351
+mean_permeability=0.466690496
+mean_coupling=0.025094614
+organized_fraction=0.956845238
+coupled_fraction=0.276785714
+largest_organized_component=0.956845238
+luminous_sites=1120
+channel_signal=283.693882980
+channel_total=406.590265466
+channel_fidelity=0.697738994
+channel_balance=0.932321833
+channel_information_bits=0.495471145

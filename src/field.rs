@@ -83,15 +83,53 @@ impl std::ops::Mul for Spectrum {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CouplingMode {
+    Adaptive,
+    Fixed,
+    Inert,
+}
+
+impl CouplingMode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Adaptive => "adaptive",
+            Self::Fixed => "fixed",
+            Self::Inert => "inert",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DisturbanceMode {
+    None,
+    Scar,
+    Noise,
+}
+
+impl DisturbanceMode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Scar => "scar",
+            Self::Noise => "noise",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Config {
     pub width: usize,
     pub height: usize,
     pub seed: u64,
+    pub coupling_mode: CouplingMode,
+    pub disturbance_mode: DisturbanceMode,
     pub diffusion: f32,
     pub gradient: f32,
     pub formation: f32,
     pub erosion: f32,
+    pub coupling_formation: f32,
+    pub coupling_erosion: f32,
     pub radiation: f32,
     pub dissipation: f32,
 }
@@ -102,10 +140,14 @@ impl Default for Config {
             width: 192,
             height: 112,
             seed: 0xA701_5EED,
+            coupling_mode: CouplingMode::Adaptive,
+            disturbance_mode: DisturbanceMode::None,
             diffusion: 0.105,
-            gradient: 0.16,
+            gradient: 0.24,
             formation: 0.022,
             erosion: 0.0018,
+            coupling_formation: 0.220,
+            coupling_erosion: 0.00035,
             radiation: 0.19,
             dissipation: 0.0012,
         }
@@ -125,6 +167,8 @@ impl Config {
             ("gradient", self.gradient),
             ("formation", self.formation),
             ("erosion", self.erosion),
+            ("coupling_formation", self.coupling_formation),
+            ("coupling_erosion", self.coupling_erosion),
             ("radiation", self.radiation),
             ("dissipation", self.dissipation),
         ] {
@@ -149,6 +193,7 @@ struct Site {
     coupling: Spectrum,
     permeability: f32,
     activity: f32,
+    phase: f32,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -159,9 +204,19 @@ pub struct Measurements {
     pub radiated: f64,
     pub dissipated: f64,
     pub accounting_error: f64,
+    pub disturbance_introduced: f64,
+    pub disturbance_dissipated: f64,
     pub mean_permeability: f64,
+    pub mean_coupling: f64,
     pub organized_fraction: f64,
+    pub coupled_fraction: f64,
+    pub largest_organized_component: f64,
     pub luminous_sites: usize,
+    pub channel_signal: f64,
+    pub channel_total: f64,
+    pub channel_fidelity: f64,
+    pub channel_balance: f64,
+    pub channel_information_bits: f64,
 }
 
 pub struct World {
@@ -169,8 +224,19 @@ pub struct World {
     sites: Vec<Site>,
     age: u64,
     introduced: f64,
+    disturbance_introduced: f64,
     radiated: f64,
     dissipated: f64,
+    disturbance_dissipated: f64,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct ChannelMeasurements {
+    signal: f64,
+    total: f64,
+    fidelity: f64,
+    balance: f64,
+    information_bits: f64,
 }
 
 impl World {
@@ -180,9 +246,16 @@ impl World {
         let mut sites = Vec::with_capacity(config.width * config.height);
         for y in 0..config.height {
             for x in 0..config.width {
+                let coupling = match config.coupling_mode {
+                    CouplingMode::Adaptive | CouplingMode::Inert => {
+                        seed_coupling(&mut random, x, config.width)
+                    }
+                    CouplingMode::Fixed => visible_coupling(x, y, config.width, config.height),
+                };
                 sites.push(Site {
                     permeability: 0.055 + random.unit_f32() * 0.025,
-                    coupling: visible_coupling(x, y, config.width, config.height),
+                    coupling,
+                    phase: random.unit_f32() * TAU,
                     ..Site::default()
                 });
             }
@@ -192,8 +265,10 @@ impl World {
             sites,
             age: 0,
             introduced: 0.0,
+            disturbance_introduced: 0.0,
             radiated: 0.0,
             dissipated: 0.0,
+            disturbance_dissipated: 0.0,
         })
     }
 
@@ -213,6 +288,9 @@ impl World {
     /// local change; it is not an ordering visible within the substrate.
     pub fn evolve(&mut self) {
         self.stimulate_boundary();
+        if self.config.disturbance_mode == DisturbanceMode::Noise {
+            self.inject_noise();
+        }
         let count = self.sites.len();
         let mut change = vec![Spectrum::ZERO; count];
         let mut local_flow = vec![0.0_f32; count];
@@ -231,22 +309,39 @@ impl World {
             }
         }
 
+        let config = self.config;
+        let width = config.width;
         for (index, site) in self.sites.iter_mut().enumerate() {
             site.energy = (site.energy + change[index]).clamp_nonnegative();
-            let emitted = (site.energy * site.coupling) * self.config.radiation;
+            let emitted = (site.energy * site.coupling) * config.radiation;
             site.energy -= emitted;
             site.trace += emitted;
             self.radiated += emitted.total();
 
-            let lost = site.energy * self.config.dissipation;
+            let lost = site.energy * config.dissipation;
             site.energy -= lost;
             self.dissipated += lost.total();
 
             let activity = (local_flow[index] * 2.5).min(1.0);
             site.activity = site.activity * 0.94 + activity * 0.06;
-            let growth = self.config.formation * site.activity * (1.0 - site.permeability);
-            let decay = self.config.erosion * (site.permeability - 0.05).max(0.0);
+            let growth = config.formation * site.activity * (1.0 - site.permeability);
+            let decay = config.erosion * (site.permeability - 0.05).max(0.0);
             site.permeability = (site.permeability + growth - decay).clamp(0.025, 1.0);
+            site.phase =
+                wrap_phase(site.phase + site.activity * spectral_turn(site.energy) * 0.024);
+            if config.coupling_mode == CouplingMode::Adaptive {
+                adapt_coupling(
+                    site,
+                    index % width,
+                    width,
+                    config,
+                    emitted,
+                    local_flow[index],
+                );
+            }
+        }
+        if self.config.disturbance_mode == DisturbanceMode::Scar {
+            self.apply_scar();
         }
         self.age += 1;
     }
@@ -269,16 +364,30 @@ impl World {
             .map(|site| site.permeability as f64)
             .sum::<f64>()
             / self.sites.len() as f64;
+        let mean_coupling = self
+            .sites
+            .iter()
+            .map(|site| site.coupling.peak() as f64)
+            .sum::<f64>()
+            / self.sites.len() as f64;
         let organized = self
             .sites
             .iter()
             .filter(|site| site.permeability > 0.14)
+            .count();
+        let coupled = self
+            .sites
+            .iter()
+            .filter(|site| site.coupling.peak() > 0.012)
             .count();
         let luminous_sites = self
             .sites
             .iter()
             .filter(|site| site.trace.peak() > 0.01)
             .count();
+        let largest_organized_component =
+            self.largest_component_fraction(|site| site.permeability > 0.14);
+        let channel = self.channel_measurements();
         let accounted = resident + self.radiated + self.dissipated;
         Measurements {
             age: self.age,
@@ -287,9 +396,19 @@ impl World {
             radiated: self.radiated,
             dissipated: self.dissipated,
             accounting_error: self.introduced - accounted,
+            disturbance_introduced: self.disturbance_introduced,
+            disturbance_dissipated: self.disturbance_dissipated,
             mean_permeability,
+            mean_coupling,
             organized_fraction: organized as f64 / self.sites.len() as f64,
+            coupled_fraction: coupled as f64 / self.sites.len() as f64,
+            largest_organized_component,
             luminous_sites,
+            channel_signal: channel.signal,
+            channel_total: channel.total,
+            channel_fidelity: channel.fidelity,
+            channel_balance: channel.balance,
+            channel_information_bits: channel.information_bits,
         }
     }
 
@@ -315,8 +434,111 @@ impl World {
             .collect()
     }
 
+    fn channel_measurements(&self) -> ChannelMeasurements {
+        let mut matrix = [[0.0_f64; 3]; 3];
+
+        for y in 0..self.config.height {
+            let ny = y as f32 / (self.config.height - 1) as f32;
+            let mut bands = [
+                source_band(ny, 0.23),
+                source_band(ny, 0.50),
+                source_band(ny, 0.77),
+            ];
+            let band_total = bands.iter().sum::<f32>();
+            if band_total <= 0.000_001 {
+                continue;
+            }
+            for band in &mut bands {
+                *band /= band_total;
+            }
+
+            for x in 0..self.config.width {
+                let access = observation_access(x, self.config.width);
+                if access <= 0.0 {
+                    continue;
+                }
+
+                let site = self.sites[self.index(x, y)];
+                let colors = [
+                    site.trace.red as f64,
+                    site.trace.green as f64,
+                    site.trace.blue as f64,
+                ];
+                for band in 0..3 {
+                    let weight = bands[band] as f64 * access as f64;
+                    for (color, value) in colors.iter().enumerate() {
+                        matrix[band][color] += *value * weight;
+                    }
+                }
+            }
+        }
+
+        channel_from_matrix(matrix)
+    }
+
     fn index(&self, x: usize, y: usize) -> usize {
         y * self.config.width + x
+    }
+
+    fn largest_component_fraction(&self, active: impl Fn(&Site) -> bool) -> f64 {
+        let mut visited = vec![false; self.sites.len()];
+        let mut stack = Vec::new();
+        let mut largest = 0_usize;
+
+        for start in 0..self.sites.len() {
+            if visited[start] || !active(&self.sites[start]) {
+                continue;
+            }
+
+            let mut size = 0_usize;
+            visited[start] = true;
+            stack.push(start);
+
+            while let Some(index) = stack.pop() {
+                size += 1;
+                let x = index % self.config.width;
+                let y = index / self.config.width;
+                if x > 0 {
+                    self.visit_if_active(index - 1, &active, &mut visited, &mut stack);
+                }
+                if x + 1 < self.config.width {
+                    self.visit_if_active(index + 1, &active, &mut visited, &mut stack);
+                }
+                if y > 0 {
+                    self.visit_if_active(
+                        index - self.config.width,
+                        &active,
+                        &mut visited,
+                        &mut stack,
+                    );
+                }
+                if y + 1 < self.config.height {
+                    self.visit_if_active(
+                        index + self.config.width,
+                        &active,
+                        &mut visited,
+                        &mut stack,
+                    );
+                }
+            }
+
+            largest = largest.max(size);
+        }
+
+        largest as f64 / self.sites.len() as f64
+    }
+
+    fn visit_if_active(
+        &self,
+        index: usize,
+        active: &impl Fn(&Site) -> bool,
+        visited: &mut [bool],
+        stack: &mut Vec<usize>,
+    ) {
+        if !visited[index] && active(&self.sites[index]) {
+            visited[index] = true;
+            stack.push(index);
+        }
     }
 
     fn stimulate_boundary(&mut self) {
@@ -346,6 +568,51 @@ impl World {
         }
     }
 
+    fn inject_noise(&mut self) {
+        if !self.age.is_multiple_of(13) {
+            return;
+        }
+
+        let seed = self.config.seed ^ self.age.rotate_left(17);
+        for index in 0..self.sites.len() {
+            let grain = mix64(seed ^ index as u64);
+            if grain & 0x3f != 0 {
+                continue;
+            }
+
+            let x = index % self.config.width;
+            let access = (x as f32 / (self.config.width - 1) as f32).clamp(0.0, 1.0);
+            let amount = 0.0025 * (0.25 + access * 0.75);
+            let spectral = noise_spectrum(grain) * amount;
+            self.sites[index].energy += spectral;
+            let introduced = spectral.total();
+            self.introduced += introduced;
+            self.disturbance_introduced += introduced;
+        }
+    }
+
+    fn apply_scar(&mut self) {
+        for index in 0..self.sites.len() {
+            let x = index % self.config.width;
+            let y = index / self.config.width;
+            let mask = scar_mask(x, y, self.config.width, self.config.height);
+            if mask <= 0.0 {
+                continue;
+            }
+
+            let site = &mut self.sites[index];
+            let absorbed = site.energy * (mask * 0.018);
+            site.energy -= absorbed;
+            let absorbed_total = absorbed.total();
+            self.dissipated += absorbed_total;
+            self.disturbance_dissipated += absorbed_total;
+
+            site.permeability = (site.permeability * (1.0 - mask * 0.006)).clamp(0.025, 1.0);
+            site.coupling = site.coupling * (1.0 - mask * 0.010);
+            site.phase = wrap_phase(site.phase + mask * 0.041);
+        }
+    }
+
     fn exchange(
         &self,
         left: usize,
@@ -356,7 +623,10 @@ impl World {
     ) {
         let a = self.sites[left];
         let b = self.sites[right];
-        let conductance = 0.32 + 0.68 * (a.permeability * b.permeability).sqrt();
+        let edge_phase = if follows_gradient { 0.0 } else { PI * 0.5 };
+        let alignment = 0.5 + 0.5 * (a.phase - b.phase + edge_phase).cos();
+        let material = (a.permeability * b.permeability).sqrt();
+        let conductance = (0.14 + 0.86 * material) * (0.42 + 0.58 * alignment);
         let relaxation = (a.energy - b.energy) * (self.config.diffusion * conductance);
         let drift = if follows_gradient {
             a.energy * (self.config.gradient * conductance)
@@ -400,6 +670,160 @@ fn visible_coupling(x: usize, y: usize, width: usize, height: usize) -> Spectrum
     )
 }
 
+fn seed_coupling(random: &mut SplitMix64, x: usize, width: usize) -> Spectrum {
+    let access = observation_access(x, width);
+    if access <= 0.0 {
+        return Spectrum::ZERO;
+    }
+
+    let amplitude = access * (0.00018 + random.unit_f32() * 0.00062);
+    Spectrum::new(
+        amplitude * (0.35 + random.unit_f32() * 0.65),
+        amplitude * (0.35 + random.unit_f32() * 0.65),
+        amplitude * (0.35 + random.unit_f32() * 0.65),
+    )
+}
+
+fn adapt_coupling(
+    site: &mut Site,
+    x: usize,
+    width: usize,
+    config: Config,
+    emitted: Spectrum,
+    flow: f32,
+) {
+    let access = observation_access(x, width);
+    if access <= 0.0 {
+        site.coupling = Spectrum::ZERO;
+        return;
+    }
+
+    let signal = site.energy + emitted;
+    let spectral_shape = unit_spectrum(signal);
+    let conversion_drive = (emitted.magnitude() * 28.0).min(1.0);
+    let signal_drive = (signal.magnitude() * 0.24).min(1.0);
+    let transport_drive = (flow * 0.42).min(1.0);
+    let drive = (signal_drive * (site.activity * 0.70 + transport_drive * 0.25)
+        + conversion_drive * 0.05)
+        .clamp(0.0, 1.0);
+    let target_amplitude = access * (0.18 + site.permeability * 0.82).clamp(0.0, 1.0);
+    let target = spectral_shape * target_amplitude;
+    let readiness = (site.coupling.peak() * 260.0).clamp(0.0, 1.0);
+    let compound_drive = drive * (0.10 + readiness * 0.90);
+    let compound =
+        1.0 + config.coupling_formation * compound_drive * (1.0 + site.coupling.peak() * 28.0);
+    let imprint = target * (config.coupling_formation * drive * 0.16);
+
+    site.coupling = site.coupling * compound.min(1.32) + imprint;
+    site.coupling = site
+        .coupling
+        .zip(target, |value, cap| value.min(cap.max(0.001)));
+
+    let disuse = config.coupling_erosion * (1.0 - site.activity * 0.72).clamp(0.0, 1.0);
+    site.coupling = site
+        .coupling
+        .map(|value| (value * (1.0 - disuse)).clamp(0.0, 1.0));
+}
+
+fn unit_spectrum(signal: Spectrum) -> Spectrum {
+    let total = signal.red + signal.green + signal.blue;
+    if total <= 0.000_001 {
+        Spectrum::ZERO
+    } else {
+        signal * (1.0 / total)
+    }
+}
+
+fn spectral_turn(signal: Spectrum) -> f32 {
+    let total = signal.red + signal.green + signal.blue;
+    if total <= 0.000_001 {
+        0.0
+    } else {
+        let red = signal.red / total;
+        let green = signal.green / total;
+        let blue = signal.blue / total;
+        (red - blue) * 0.72 + (green - 0.5 * (red + blue)) * 0.38
+    }
+}
+
+fn wrap_phase(phase: f32) -> f32 {
+    phase.rem_euclid(TAU)
+}
+
+fn observation_access(x: usize, width: usize) -> f32 {
+    let nx = x as f32 / (width - 1) as f32;
+    ((nx - 0.40) / 0.20).clamp(0.0, 1.0)
+}
+
+fn source_band(ny: f32, center: f32) -> f32 {
+    soft_band((ny - center).abs(), 0.14)
+}
+
+fn channel_from_matrix(matrix: [[f64; 3]; 3]) -> ChannelMeasurements {
+    let total = matrix.iter().flatten().sum::<f64>();
+    if total <= 0.000_001 {
+        return ChannelMeasurements::default();
+    }
+
+    let signal = matrix[0][0] + matrix[1][1] + matrix[2][2];
+    let fidelity = signal / total;
+    let weakest = matrix[0][0].min(matrix[1][1]).min(matrix[2][2]);
+    let balance = if signal <= 0.000_001 {
+        0.0
+    } else {
+        (3.0 * weakest / signal).clamp(0.0, 1.0)
+    };
+
+    ChannelMeasurements {
+        signal,
+        total,
+        fidelity,
+        balance,
+        information_bits: channel_information_bits(matrix, total),
+    }
+}
+
+fn channel_information_bits(matrix: [[f64; 3]; 3], total: f64) -> f64 {
+    let mut row_totals = [0.0_f64; 3];
+    let mut column_totals = [0.0_f64; 3];
+    for band in 0..3 {
+        for (color, value) in matrix[band].iter().enumerate() {
+            row_totals[band] += *value;
+            column_totals[color] += *value;
+        }
+    }
+
+    let mut information = 0.0;
+    for band in 0..3 {
+        for (color, value) in matrix[band].iter().enumerate() {
+            if *value <= 0.0 || row_totals[band] <= 0.0 || column_totals[color] <= 0.0 {
+                continue;
+            }
+            let joint = *value / total;
+            let independent = (row_totals[band] / total) * (column_totals[color] / total);
+            information += joint * (joint / independent).log2();
+        }
+    }
+    information.max(0.0)
+}
+
+fn scar_mask(x: usize, y: usize, width: usize, height: usize) -> f32 {
+    let nx = x as f32 / (width - 1) as f32;
+    let ny = y as f32 / (height - 1) as f32;
+    let ridge = 0.54 + 0.035 * (ny * TAU * 2.7).sin();
+    let vertical = soft_band((nx - ridge).abs(), 0.034);
+    let ribbing = 0.60 + 0.40 * (ny * TAU * 8.0 + nx * TAU * 1.5).sin().abs();
+    let channel_opening = 1.0 - 0.45 * soft_band((ny - 0.50).abs(), 0.16);
+    (vertical * ribbing * channel_opening).clamp(0.0, 1.0)
+}
+
+fn noise_spectrum(grain: u64) -> Spectrum {
+    let red = ((grain >> 8) & 0xff) as f32 / 255.0;
+    let green = ((grain >> 24) & 0xff) as f32 / 255.0;
+    let blue = ((grain >> 40) & 0xff) as f32 / 255.0;
+    Spectrum::new(red, green, blue)
+}
+
 fn soft_band(distance: f32, width: f32) -> f32 {
     let normalized = (distance / width).clamp(0.0, 1.0);
     0.5 + 0.5 * (PI * normalized).cos()
@@ -416,13 +840,16 @@ fn linear_to_u8(value: f32) -> u8 {
 
 struct SplitMix64(u64);
 
+fn mix64(mut value: u64) -> u64 {
+    value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    value ^ (value >> 31)
+}
+
 impl SplitMix64 {
     fn next(&mut self) -> u64 {
         self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut value = self.0;
-        value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        value ^ (value >> 31)
+        mix64(self.0)
     }
 
     fn unit_f32(&mut self) -> f32 {
@@ -496,5 +923,121 @@ mod tests {
         let after = world.measurements().mean_permeability;
         assert!(after > before * 1.02, "before {before}, after {after}");
         assert!(world.measurements().organized_fraction > 0.0);
+    }
+
+    #[test]
+    fn adaptive_compounding_amplifies_coupling_beyond_inert_seed() {
+        let adaptive_config = Config {
+            width: 56,
+            height: 36,
+            seed: 103,
+            ..Config::default()
+        };
+        let inert_config = Config {
+            coupling_mode: CouplingMode::Inert,
+            ..adaptive_config
+        };
+
+        let mut adaptive = World::new(adaptive_config).unwrap();
+        let mut inert = World::new(inert_config).unwrap();
+        adaptive.evolve_for(900);
+        inert.evolve_for(900);
+
+        let adaptive = adaptive.measurements();
+        let inert = inert.measurements();
+        assert!(
+            adaptive.radiated > inert.radiated * 8.0,
+            "adaptive {}, inert {}",
+            adaptive.radiated,
+            inert.radiated
+        );
+        assert!(adaptive.coupled_fraction > inert.coupled_fraction + 0.10);
+    }
+
+    #[test]
+    fn disturbance_energy_is_accounted_for() {
+        let mut world = World::new(Config {
+            width: 48,
+            height: 32,
+            seed: 211,
+            disturbance_mode: DisturbanceMode::Noise,
+            ..Config::default()
+        })
+        .unwrap();
+        world.evolve_for(500);
+        let measured = world.measurements();
+        let relative_error = measured.accounting_error.abs() / measured.introduced;
+        assert!(
+            relative_error < 0.000_04,
+            "relative error was {relative_error}"
+        );
+        assert!(measured.disturbance_introduced > 0.0);
+    }
+
+    #[test]
+    fn adaptive_material_outperforms_inert_material_under_scar() {
+        let adaptive_config = Config {
+            width: 56,
+            height: 36,
+            seed: 103,
+            disturbance_mode: DisturbanceMode::Scar,
+            ..Config::default()
+        };
+        let inert_config = Config {
+            coupling_mode: CouplingMode::Inert,
+            ..adaptive_config
+        };
+
+        let mut adaptive = World::new(adaptive_config).unwrap();
+        let mut inert = World::new(inert_config).unwrap();
+        adaptive.evolve_for(1_200);
+        inert.evolve_for(1_200);
+
+        let adaptive = adaptive.measurements();
+        let inert = inert.measurements();
+        assert!(adaptive.disturbance_dissipated > 0.0);
+        assert!(
+            adaptive.radiated > inert.radiated * 4.0,
+            "adaptive {}, inert {}",
+            adaptive.radiated,
+            inert.radiated
+        );
+        assert!(adaptive.luminous_sites > inert.luminous_sites);
+    }
+
+    #[test]
+    fn adaptive_material_preserves_more_channel_information_under_scar() {
+        let adaptive_config = Config {
+            width: 56,
+            height: 36,
+            seed: 103,
+            disturbance_mode: DisturbanceMode::Scar,
+            ..Config::default()
+        };
+        let inert_config = Config {
+            coupling_mode: CouplingMode::Inert,
+            ..adaptive_config
+        };
+
+        let mut adaptive = World::new(adaptive_config).unwrap();
+        let mut inert = World::new(inert_config).unwrap();
+        adaptive.evolve_for(1_200);
+        inert.evolve_for(1_200);
+
+        let adaptive = adaptive.measurements();
+        let inert = inert.measurements();
+        assert!(
+            adaptive.channel_signal > inert.channel_signal * 12.0,
+            "adaptive {}, inert {}",
+            adaptive.channel_signal,
+            inert.channel_signal
+        );
+        assert!(
+            adaptive.channel_information_bits > inert.channel_information_bits + 0.15,
+            "adaptive {}, inert {}",
+            adaptive.channel_information_bits,
+            inert.channel_information_bits
+        );
+        assert!(adaptive.channel_fidelity > 0.65);
     }
 }
