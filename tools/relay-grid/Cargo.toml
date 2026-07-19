@@ -1,0 +1,9 @@
+﻿[package]
+name = "universum-relay-grid"
+version = "0.1.0"
+edition = "2024"
+description = "Relay and guard grid tuner for the Universum substrate"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+universum-substrate = { path = "../.." }

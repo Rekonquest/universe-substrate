@@ -59,6 +59,7 @@ cargo run --release --bin falsify -- --output artifacts/primitive-stack-falsific
 cargo run --release --bin falsify -- --seed-count 4 --output artifacts/primitive-stack-cohort-falsification.txt
 cargo run --release --bin sweep -- --output artifacts/primitive-optimization-sweep.txt
 cargo run --release --bin multisweep -- --output artifacts/primitive-multiseed-sweep.txt
+cargo run --release --manifest-path tools/relay-grid/Cargo.toml -- --output artifacts/relay-grid-search.txt
 cargo run --release -- --phase-relay 0.32 --output artifacts/phase-relay-smoke.bmp
 cargo run --release -- --phase-relay 0.30 --relay-guard 0.50 --output artifacts/guarded-phase-relay-smoke.bmp
 ~~~
@@ -189,6 +190,20 @@ where the local spectrum drifts away from the source-band shape. A release
 smoke run at `--phase-relay 0.30 --relay-guard 0.50` wrote
 `artifacts/guarded-phase-relay-smoke.bmp`; that run produced `2887` luminous
 sites and `1.265713355` channel-information bits.
+
+`universum-relay-grid` is split into `tools/relay-grid` so the main substrate
+crate remains under the 4,000-line Rust crate limit. The current grid searched
+35 low-leak relay/guard combinations across four seeds and wrote
+`artifacts/relay-grid-search.txt`. Its Pareto frontier was:
+
+- `relay-grid-p0.40-g0.00`: highest signal and radiation rate;
+- `relay-grid-p0.40-g0.25`;
+- `relay-grid-p0.40-g0.50`;
+- `relay-grid-p0.40-g0.75`;
+- `relay-grid-p0.40-g1.00`: highest channel information inside the grid.
+
+The grid frontier did not beat adaptive baseline channel information, so it is
+tuning evidence, not a promoted replacement.
 
 ## What would falsify this stage
 

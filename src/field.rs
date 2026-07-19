@@ -424,6 +424,17 @@ impl World {
         }
     }
 
+    pub fn visible_hash64(&self) -> u64 {
+        let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+        for pixel in self.rgb8() {
+            for channel in pixel {
+                hash ^= u64::from(channel);
+                hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+            }
+        }
+        hash
+    }
+
     pub(crate) fn rgb8(&self) -> Vec<[u8; 3]> {
         let peak_trace = self
             .sites
