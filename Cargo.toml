@@ -1,0 +1,18 @@
+[package]
+name = "universum-substrate"
+version = "0.1.0"
+edition = "2024"
+description = "An experiment in outcome-directed computation emerging from local physical laws"
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "universum_substrate"
+path = "src/lib.rs"
+
+[[bin]]
+name = "universum"
+path = "src/main.rs"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

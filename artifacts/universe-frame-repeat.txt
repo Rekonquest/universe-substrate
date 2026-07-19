@@ -1,0 +1,14 @@
+Universum substrate experiment
+seed=2801889005
+width=192
+height=112
+moments=2400
+elapsed_seconds=1.731880
+introduced=3697.920084000
+resident=984.252368076
+radiated=432.368235151
+dissipated=2281.299217925
+accounting_error=0.000262847206
+mean_permeability=0.199254524
+organized_fraction=0.443963914
+luminous_sites=923
