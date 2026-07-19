@@ -8,6 +8,7 @@
 mod falsify;
 mod field;
 mod render;
+mod sweep;
 
 pub use falsify::{
     FalsificationReport, FalsificationThresholds, PrimitiveStack, StackOutcome,
@@ -15,3 +16,4 @@ pub use falsify::{
 };
 pub use field::{Config, CouplingMode, DisturbanceMode, Measurements, Spectrum, World};
 pub use render::write_bmp;
+pub use sweep::{CandidateOutcome, PrimitiveCandidate, SweepReport, run_standard_sweep};
