@@ -57,6 +57,7 @@ cargo run --release -- --disturbance noise --output artifacts/noisy-adaptive.bmp
 cargo run --release -- --disturbance scar --sample-every 250 --output artifacts/scar-timeline.bmp
 cargo run --release --bin falsify -- --output artifacts/primitive-stack-falsification.txt
 cargo run --release --bin sweep -- --output artifacts/primitive-optimization-sweep.txt
+cargo run --release --bin multisweep -- --output artifacts/primitive-multiseed-sweep.txt
 ~~~
 
 The `adaptive` mode is the default. It starts with tiny noisy coupling and lets
@@ -146,6 +147,20 @@ The current result is mixed and therefore stays under operator review:
 - max relative accounting error was `0.000000080395`;
 - no primitive was rejected.
 
+`universum-multisweep` repeats the same optimization sweep across several
+deterministic seeds. The current four-seed release run wrote
+`artifacts/primitive-multiseed-sweep.txt` and found no stable universal leader:
+
+- channel-information leader: mixed; `baseline-adaptive` won 3 of 4 seeds and
+  `radiation-gate` won 1 of 4;
+- signal-rate leader: mixed; `transport-pressure` won 3 of 4 seeds and
+  `low-leak-memory` won 1 of 4;
+- radiation-rate leader: mixed; `low-leak-plus-radiation` won 3 of 4 seeds and
+  `low-leak-memory` won 1 of 4;
+- all repeated candidate hashes were deterministic;
+- max relative accounting error was `0.000000090349`;
+- no primitive was rejected.
+
 ## What would falsify this stage
 
 The experiment fails its first claim if any of these remain true after a run:
@@ -170,6 +185,8 @@ The experiment fails its first claim if any of these remain true after a run:
 12. optimization sweeps claim a primitive improvement without reporting the
     tested primitive list, stack order, deterministic repeat hash, accounting
     error, salvage attempt, and operator disposition.
+13. a single-seed primitive sweep is treated as enough evidence to promote or
+    reject a primitive without a multi-seed stability check.
 
 Passing these conditions only earns the right to build the next experiment.
 It does not establish equivalence to Vulkan or to a hardware driver.
