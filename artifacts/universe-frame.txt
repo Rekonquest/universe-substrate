@@ -2,10 +2,11 @@ Universum substrate experiment
 seed=2801884909
 coupling=adaptive
 disturbance=none
+phase_relay=0.000000
 width=192
 height=112
 moments=4000
-elapsed_seconds=5.657791
+elapsed_seconds=7.672949
 introduced=6163.200139999
 resident=1116.867342843
 radiated=442.094425644

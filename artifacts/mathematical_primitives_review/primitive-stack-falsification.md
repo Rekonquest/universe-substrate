@@ -50,11 +50,22 @@ evidence that would be used for operator review.
 
 Source report: `artifacts/primitive-stack-falsification.txt`
 
+Cohort source report: `artifacts/primitive-stack-cohort-falsification.txt`
+
 - adaptive radiation gain: `39.953245299x`
 - adaptive channel-information gain: `0.213472535` bits
 - scar radiation gain: `47.955535563x`
 - scar channel-information gain: `0.283003310` bits
 - falsification gate: `PASS`
+
+Four-seed cohort evidence:
+
+- max relative accounting error: `0.000000092799`
+- minimum adaptive radiation gain: `39.629031905x`
+- minimum adaptive channel-information gain: `0.192487760` bits
+- minimum scar radiation gain: `46.772023759x`
+- minimum scar channel-information gain: `0.277531129` bits
+- cohort falsification gate: `PASS`
 
 ## Operator primitive impact
 

@@ -1,4 +1,4 @@
-use std::{fmt, time::Instant};
+﻿use std::{fmt, time::Instant};
 
 use crate::{Config, CouplingMode, DisturbanceMode, Measurements, World};
 
@@ -146,7 +146,7 @@ pub fn run_standard_sweep(
     })
 }
 
-fn standard_candidates() -> [PrimitiveCandidate; 7] {
+fn standard_candidates() -> [PrimitiveCandidate; 10] {
     [
         PrimitiveCandidate::new(
             "transport-pressure",
@@ -190,6 +190,24 @@ fn standard_candidates() -> [PrimitiveCandidate; 7] {
             "softened each individual primitive and tested whether the compound is more stable than extremes",
             balanced_channel_compound,
         ),
+        PrimitiveCandidate::new(
+            "phase-relay",
+            "local phase-coherent spectral relay boosts adjacent conductance only when material and spectral shapes align",
+            "bounded relay strength below transport stability limit and left all ordering local",
+            phase_relay,
+        ),
+        PrimitiveCandidate::new(
+            "phase-relay-transport",
+            "phase relay compounded with moderate transport pressure",
+            "stacked relay after local phase/spectral compatibility and kept diffusion lower than transport-pressure",
+            phase_relay_transport,
+        ),
+        PrimitiveCandidate::new(
+            "phase-relay-low-leak",
+            "phase relay compounded with lower dissipation and slower permeability erosion",
+            "paired relay speed with longer material memory without changing radiation conversion",
+            phase_relay_low_leak,
+        ),
     ]
 }
 
@@ -211,7 +229,7 @@ fn evolve_baseline(
     let repeated_measurements = repeated.measurements();
     let deterministic = visible_hash == repeated_visible_hash
         && same_measurements(measurements, repeated_measurements);
-    let safe_elapsed = elapsed_seconds.max(f64::EPSILON);
+    let safe_moments = measurements.age.max(1) as f64;
 
     Ok(CandidateOutcome {
         candidate,
@@ -225,9 +243,9 @@ fn evolve_baseline(
         channel_information_gain: 0.0,
         channel_signal_gain: 1.0,
         luminous_gain: 1.0,
-        information_rate: measurements.channel_information_bits / safe_elapsed,
-        signal_rate: measurements.channel_signal / safe_elapsed,
-        radiation_rate: measurements.radiated / safe_elapsed,
+        information_rate: measurements.channel_information_bits / safe_moments,
+        signal_rate: measurements.channel_signal / safe_moments,
+        radiation_rate: measurements.radiated / safe_moments,
     })
 }
 
@@ -251,7 +269,7 @@ fn evolve_candidate(
     let repeated_measurements = repeated.measurements();
     let deterministic = visible_hash == repeated_visible_hash
         && same_measurements(measurements, repeated_measurements);
-    let safe_elapsed = elapsed_seconds.max(f64::EPSILON);
+    let safe_moments = measurements.age.max(1) as f64;
 
     Ok(CandidateOutcome {
         candidate,
@@ -269,9 +287,9 @@ fn evolve_candidate(
             measurements.luminous_sites as f64,
             baseline.luminous_sites as f64,
         ),
-        information_rate: measurements.channel_information_bits / safe_elapsed,
-        signal_rate: measurements.channel_signal / safe_elapsed,
-        radiation_rate: measurements.radiated / safe_elapsed,
+        information_rate: measurements.channel_information_bits / safe_moments,
+        signal_rate: measurements.channel_signal / safe_moments,
+        radiation_rate: measurements.radiated / safe_moments,
     })
 }
 
@@ -487,6 +505,25 @@ fn balanced_channel_compound(mut config: Config) -> Config {
     config
 }
 
+fn phase_relay(mut config: Config) -> Config {
+    config.phase_relay = 0.32;
+    config
+}
+
+fn phase_relay_transport(mut config: Config) -> Config {
+    config.diffusion = 0.118;
+    config.gradient = 0.245;
+    config.phase_relay = 0.30;
+    config
+}
+
+fn phase_relay_low_leak(mut config: Config) -> Config {
+    config.phase_relay = 0.28;
+    config.dissipation = 0.000_95;
+    config.erosion = 0.001_45;
+    config
+}
+
 fn same_measurements(a: Measurements, b: Measurements) -> bool {
     a.age == b.age
         && a.introduced.to_bits() == b.introduced.to_bits()
@@ -556,6 +593,9 @@ mod tests {
             "candidate=transport-plus-coupling",
             "candidate=low-leak-plus-radiation",
             "candidate=balanced-channel-compound",
+            "candidate=phase-relay",
+            "candidate=phase-relay-transport",
+            "candidate=phase-relay-low-leak",
         ] {
             let position = text
                 .find(candidate)

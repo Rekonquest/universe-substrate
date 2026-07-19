@@ -39,6 +39,12 @@ reject any primitive and does not rename a speed gain into a quality gain.
   extraction.
 - `balanced-channel-compound`: moderate transport, coupling, and leak changes
   stacked together.
+- `phase-relay`: local phase-coherent spectral relay boosts adjacent
+  conductance only when material and spectral shapes align.
+- `phase-relay-transport`: phase relay compounded with moderate transport
+  pressure.
+- `phase-relay-low-leak`: phase relay compounded with lower dissipation and
+  slower permeability erosion.
 
 ## Salvage attempts
 
@@ -53,23 +59,25 @@ Source report: `artifacts/primitive-optimization-sweep.txt`
 
 - sweep gate: `PASS`
 - all deterministic: `true`
-- max relative accounting error: `0.000000080395`
+- max relative accounting error: `0.000000094309`
 - best channel information: `baseline-adaptive`
 - best channel-information bits: `0.571924141`
-- best signal rate: `transport-pressure`
+- best per-moment signal rate: `phase-relay-low-leak`
+- best per-moment signal-rate value: `0.250970884`
 - best radiation rate: `low-leak-plus-radiation`
+- best per-moment radiation-rate value: `0.804659432`
 
-The exact signal-rate and radiation-rate values are left in the generated
-report because they include wall-clock timing and can shift between otherwise
-identical deterministic runs.
+Signal-rate and radiation-rate values are deterministic per substrate moment.
+Wall-clock elapsed time is still reported separately, but it is not used for
+primitive leader selection.
 
 ## Operator primitive impact
 
 operator_primitive_impact: The sweep found speed-adjacent gains, but the
 default adaptive stack still preserved the highest channel information in this
-run. `transport-pressure` improved signal rate and
-`low-leak-plus-radiation` improved radiation rate. These are candidates for
-follow-up, not approved replacements.
+run. `phase-relay-low-leak` improved signal rate in the current single-seed
+sweep, and `low-leak-plus-radiation` improved radiation rate. These are
+candidates for follow-up, not approved replacements.
 
 operator_notification: No primitive was rejected. Any future candidate
 disposition must include the exact primitive list, stack order, measured

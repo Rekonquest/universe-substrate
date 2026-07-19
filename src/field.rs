@@ -126,6 +126,7 @@ pub struct Config {
     pub disturbance_mode: DisturbanceMode,
     pub diffusion: f32,
     pub gradient: f32,
+    pub phase_relay: f32,
     pub formation: f32,
     pub erosion: f32,
     pub coupling_formation: f32,
@@ -144,6 +145,7 @@ impl Default for Config {
             disturbance_mode: DisturbanceMode::None,
             diffusion: 0.105,
             gradient: 0.24,
+            phase_relay: 0.0,
             formation: 0.022,
             erosion: 0.0018,
             coupling_formation: 0.220,
@@ -165,6 +167,7 @@ impl Config {
         for (name, value) in [
             ("diffusion", self.diffusion),
             ("gradient", self.gradient),
+            ("phase_relay", self.phase_relay),
             ("formation", self.formation),
             ("erosion", self.erosion),
             ("coupling_formation", self.coupling_formation),
@@ -179,7 +182,10 @@ impl Config {
         if self.diffusion > 0.20 {
             return Err("diffusion above 0.20 is unstable for this local law".into());
         }
-        if self.diffusion * 4.0 + self.gradient > 0.95 {
+        if self.phase_relay > 0.70 {
+            return Err("phase_relay above 0.70 over-amplifies local conductance".into());
+        }
+        if (self.diffusion * 4.0 + self.gradient) * (1.0 + self.phase_relay) > 0.95 {
             return Err("combined transport would move too much energy in one moment".into());
         }
         Ok(self)
@@ -626,7 +632,10 @@ impl World {
         let edge_phase = if follows_gradient { 0.0 } else { PI * 0.5 };
         let alignment = 0.5 + 0.5 * (a.phase - b.phase + edge_phase).cos();
         let material = (a.permeability * b.permeability).sqrt();
-        let conductance = (0.14 + 0.86 * material) * (0.42 + 0.58 * alignment);
+        let spectral_bridge = spectral_bridge(a.energy, b.energy);
+        let relay = self.config.phase_relay * alignment * spectral_bridge * material;
+        let conductance =
+            ((0.14 + 0.86 * material) * (0.42 + 0.58 * alignment) * (1.0 + relay)).clamp(0.0, 1.70);
         let relaxation = (a.energy - b.energy) * (self.config.diffusion * conductance);
         let drift = if follows_gradient {
             a.energy * (self.config.gradient * conductance)
@@ -731,6 +740,22 @@ fn unit_spectrum(signal: Spectrum) -> Spectrum {
         Spectrum::ZERO
     } else {
         signal * (1.0 / total)
+    }
+}
+
+fn spectral_bridge(a: Spectrum, b: Spectrum) -> f32 {
+    let a_total = a.red + a.green + a.blue;
+    let b_total = b.red + b.green + b.blue;
+    if a_total <= 0.000_001 || b_total <= 0.000_001 {
+        0.0
+    } else {
+        let ar = a.red / a_total;
+        let ag = a.green / a_total;
+        let ab = a.blue / a_total;
+        let br = b.red / b_total;
+        let bg = b.green / b_total;
+        let bb = b.blue / b_total;
+        (1.0 - ((ar - br).abs() + (ag - bg).abs() + (ab - bb).abs()) * 0.5).clamp(0.0, 1.0)
     }
 }
 

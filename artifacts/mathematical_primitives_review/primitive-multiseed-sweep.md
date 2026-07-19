@@ -37,6 +37,9 @@ The same candidate set from `primitive-optimization-sweep.md` was tested:
 - `transport-plus-coupling`
 - `low-leak-plus-radiation`
 - `balanced-channel-compound`
+- `phase-relay`
+- `phase-relay-transport`
+- `phase-relay-low-leak`
 
 ## Release evidence
 
@@ -44,10 +47,10 @@ Source report: `artifacts/primitive-multiseed-sweep.txt`
 
 - seed count: `4`
 - all deterministic: `true`
-- max relative accounting error: `0.000000090349`
+- max relative accounting error: `0.000000094309`
 - stable channel-information leader: `mixed`
-- stable signal-rate leader: `mixed`
-- stable radiation-rate leader: `mixed`
+- stable signal-rate leader: `phase-relay-low-leak`
+- stable radiation-rate leader: `low-leak-plus-radiation`
 - multiseed sweep gate: `PASS`
 
 Leader counts:
@@ -56,20 +59,23 @@ Leader counts:
   radiation-rate wins `0`.
 - `radiation-gate`: channel wins `1`, signal-rate wins `0`,
   radiation-rate wins `0`.
-- `transport-pressure`: channel wins `0`, signal-rate wins `3`,
+- `transport-pressure`: channel wins `0`, signal-rate wins `0`,
   radiation-rate wins `0`.
-- `low-leak-memory`: channel wins `0`, signal-rate wins `1`,
-  radiation-rate wins `1`.
+- `phase-relay-low-leak`: channel wins `0`, signal-rate wins `4`,
+  radiation-rate wins `0`.
+- `low-leak-memory`: channel wins `0`, signal-rate wins `0`,
+  radiation-rate wins `0`.
 - `low-leak-plus-radiation`: channel wins `0`, signal-rate wins `0`,
-  radiation-rate wins `3`.
+  radiation-rate wins `4`.
 
 ## Operator primitive impact
 
 operator_primitive_impact: The single-seed speed result did not become a
-universal promotion after multi-seed testing. `transport-pressure` remains a
-strong signal-rate candidate, and `low-leak-plus-radiation` remains a strong
-radiation-rate candidate, but neither preserves channel information better than
-baseline across the tested seeds.
+universal promotion after multi-seed testing for channel information.
+`phase-relay-low-leak` is the stable per-moment signal-rate candidate in this
+four-seed gate, and `low-leak-plus-radiation` is the stable per-moment
+radiation-rate candidate. None of these preserve channel information better
+than baseline across the tested seeds.
 
 operator_notification: No primitive was rejected. Multi-seed evidence now
 blocks promoting or rejecting a primitive from one seed alone.

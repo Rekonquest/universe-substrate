@@ -56,8 +56,10 @@ cargo run --release -- --coupling inert --disturbance scar --output artifacts/sc
 cargo run --release -- --disturbance noise --output artifacts/noisy-adaptive.bmp
 cargo run --release -- --disturbance scar --sample-every 250 --output artifacts/scar-timeline.bmp
 cargo run --release --bin falsify -- --output artifacts/primitive-stack-falsification.txt
+cargo run --release --bin falsify -- --seed-count 4 --output artifacts/primitive-stack-cohort-falsification.txt
 cargo run --release --bin sweep -- --output artifacts/primitive-optimization-sweep.txt
 cargo run --release --bin multisweep -- --output artifacts/primitive-multiseed-sweep.txt
+cargo run --release -- --phase-relay 0.32 --output artifacts/phase-relay-smoke.bmp
 ~~~
 
 The `adaptive` mode is the default. It starts with tiny noisy coupling and lets
@@ -119,6 +121,16 @@ The current release run wrote
 - scar channel-information gain: 0.283003310 bits;
 - deterministic visible hashes for all six tested stacks.
 
+The current four-seed cohort run wrote
+`artifacts/primitive-stack-cohort-falsification.txt` and passed with:
+
+- max relative accounting error: `0.000000092799`;
+- minimum adaptive radiation gain: `39.629031905x`;
+- minimum adaptive channel-information gain: `0.192487760` bits;
+- minimum scar radiation gain: `46.772023759x`;
+- minimum scar channel-information gain: `0.277531129` bits;
+- deterministic repeated hashes for every stack in every seed.
+
 ## Primitive optimization sweep
 
 `universum-sweep` tests candidate primitive compounds against the default
@@ -136,15 +148,18 @@ and tested:
 - `radiation-gate`;
 - `transport-plus-coupling`;
 - `low-leak-plus-radiation`;
-- `balanced-channel-compound`.
+- `balanced-channel-compound`;
+- `phase-relay`;
+- `phase-relay-transport`;
+- `phase-relay-low-leak`.
 
 The current result is mixed and therefore stays under operator review:
 
 - best channel information: `baseline-adaptive` at `0.571924141` bits;
-- best signal rate: `transport-pressure`;
-- best radiation rate: `low-leak-plus-radiation`;
+- best per-moment signal rate: `phase-relay-low-leak` at `0.250970884`;
+- best per-moment radiation rate: `low-leak-plus-radiation` at `0.804659432`;
 - all candidate repeated hashes were deterministic;
-- max relative accounting error was `0.000000080395`;
+- max relative accounting error was `0.000000094309`;
 - no primitive was rejected.
 
 `universum-multisweep` repeats the same optimization sweep across several
@@ -153,13 +168,17 @@ deterministic seeds. The current four-seed release run wrote
 
 - channel-information leader: mixed; `baseline-adaptive` won 3 of 4 seeds and
   `radiation-gate` won 1 of 4;
-- signal-rate leader: mixed; `transport-pressure` won 3 of 4 seeds and
-  `low-leak-memory` won 1 of 4;
-- radiation-rate leader: mixed; `low-leak-plus-radiation` won 3 of 4 seeds and
-  `low-leak-memory` won 1 of 4;
+- signal-rate leader: `phase-relay-low-leak` won 4 of 4 seeds;
+- radiation-rate leader: `low-leak-plus-radiation` won 4 of 4 seeds;
 - all repeated candidate hashes were deterministic;
-- max relative accounting error was `0.000000090349`;
+- max relative accounting error was `0.000000094309`;
 - no primitive was rejected.
+
+The new `phase-relay` primitive is a local conductance law, not a scheduler or
+queue. It boosts adjacent exchange only when the two sites have compatible
+phase, material permeability, and spectral shape. A release smoke run at
+`--phase-relay 0.32` wrote `artifacts/phase-relay-smoke.bmp`; that run
+produced `2910` luminous sites and `1.261688882` channel-information bits.
 
 ## What would falsify this stage
 
@@ -182,10 +201,12 @@ The experiment fails its first claim if any of these remain true after a run:
     final-state artifact.
 11. the primitive-stack falsification gate does not pass determinism,
     accounting, adaptive gain, scar resilience, and noise-accounting checks.
-12. optimization sweeps claim a primitive improvement without reporting the
+12. the primitive-stack falsification gate only passes for one seed and fails
+    to survive a multi-seed material-grain cohort.
+13. optimization sweeps claim a primitive improvement without reporting the
     tested primitive list, stack order, deterministic repeat hash, accounting
     error, salvage attempt, and operator disposition.
-13. a single-seed primitive sweep is treated as enough evidence to promote or
+14. a single-seed primitive sweep is treated as enough evidence to promote or
     reject a primitive without a multi-seed stability check.
 
 Passing these conditions only earns the right to build the next experiment.
